@@ -925,9 +925,8 @@
         // ⚠️ IMPORTANTE: REEMPLAZA ESTOS VALORES CON TU CONFIGURACIÓN REAL
         const GITHUB_CONFIG = {
             API_URL: 'https://api.github.com',
-            FILE_PATH: 'evaluaciones.json',
-            EXCEL_PATH: 'evaluaciones.xlsx',
-            TOKEN: '',  // ← REEMPLAZA con tu token de GitHub
+            EXCEL_PATH: 'evaluaciones.xlsx',  // ARCHIVO EXCEL EN GITHUB
+            TOKEN: '',  // ← SE MANTIENE TU TOKEN ACTUAL
             REPO: 'cetug-biblioteca/Evalua'  // ← REEMPLAZA con tu usuario/repo
         };
 
@@ -959,6 +958,7 @@
         let evaluaciones = JSON.parse(localStorage.getItem(SECURITY_CONFIG.STORAGE_KEYS.EVALUATIONS)) || [];
         let isAuthenticated = false;
         let ratingChart = null;
+        let excelSHA = ''; // PARA SABER EL SHA DEL ARCHIVO EXCEL EN GITHUB
 
         // ========== ESTRUCTURA DE DIMENSIONES ==========
         const dimensions = [
@@ -1057,10 +1057,10 @@
             document.getElementById('evaluationForm').addEventListener('submit', handleSubmit);
             showTab('evaluation');
             
-            // Intentar cargar datos de GitHub automáticamente
+            // Cargar datos desde GitHub Excel automáticamente
             setTimeout(async () => {
-                await downloadFromGitHub();
-                console.log('Datos cargados de GitHub automáticamente');
+                await downloadExcelFromGitHub();
+                console.log('Datos cargados de GitHub Excel automáticamente');
             }, 1000);
             
             // Event listeners
@@ -1197,11 +1197,11 @@
             evaluaciones.push(evaluation);
             saveData();
 
-            // 2. Intentar guardar en GitHub (en segundo plano)
+            // 2. Intentar guardar en GitHub Excel (ESTO ES LO NUEVO)
             try {
-                const success = await uploadSingleEvaluation(evaluation);
+                const success = await saveEvaluationToGitHubExcel(evaluation);
                 if (success) {
-                    alert('✅ Evaluación guardada localmente y en la nube');
+                    alert('✅ Evaluación guardada localmente y en Excel en la nube');
                 } else {
                     alert('✅ Evaluación guardada localmente (error conectando con la nube)');
                 }
@@ -1256,6 +1256,192 @@
             } else {
                 submitButton.disabled = false;
                 warningDiv.style.display = 'none';
+            }
+        }
+
+        // ========== FUNCIONES GITHUB EXCEL ==========
+        async function saveEvaluationToGitHubExcel(evaluation) {
+            try {
+                // 1. Descargar Excel actual de GitHub
+                const excelData = await downloadExcelFromGitHub();
+                
+                // 2. Convertir Excel a JSON
+                const workbook = XLSX.read(excelData, { type: 'array' });
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                
+                // 3. Leer datos existentes
+                let existingData = XLSX.utils.sheet_to_json(worksheet);
+                
+                // 4. Agregar nueva evaluación
+                const newRow = {
+                    'ID': evaluation.id,
+                    'Fecha': new Date(evaluation.timestamp).toLocaleDateString('es-MX'),
+                    'Hora': new Date(evaluation.timestamp).toLocaleTimeString('es-MX'),
+                    'Estudiante': evaluation.studentName,
+                    'Semestre': evaluation.semester,
+                    'Asignatura': evaluation.subject,
+                    'Catedrático': evaluation.professor,
+                    'Carrera': evaluation.career,
+                    'Calificación Promedio': evaluation.average.toFixed(2),
+                    'Recomendación': evaluation.recommendation.wouldRecommend === 'si' ? 'Sí' : 'No',
+                    'Razón Recomendación': evaluation.recommendation.reason,
+                    'Cumple Plan Estudios': evaluation.responses['O1'] || '',
+                    'Recursos TIC útiles': evaluation.responses['O2'] || '',
+                    'Aprovechamiento Tiempo': evaluation.responses['O3'] || '',
+                    'Presentación Personal': evaluation.responses['O4'] || '',
+                    'Aspectos valorados': evaluation.responses['O5'] || '',
+                    'Sugerencias': evaluation.responses['O6'] || ''
+                };
+                
+                // 5. Agregar nueva fila
+                existingData.push(newRow);
+                
+                // 6. Crear nuevo Excel
+                const newWorksheet = XLSX.utils.json_to_sheet(existingData);
+                const newWorkbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, 'Evaluaciones');
+                
+                // 7. Convertir a base64
+                const excelBuffer = XLSX.write(newWorkbook, { bookType: 'xlsx', type: 'array' });
+                const excelBase64 = arrayBufferToBase64(excelBuffer);
+                
+                // 8. Subir a GitHub
+                const uploadSuccess = await uploadExcelToGitHub(excelBase64);
+                
+                return uploadSuccess;
+                
+            } catch (error) {
+                console.error('Error guardando en Excel GitHub:', error);
+                return false;
+            }
+        }
+
+        function arrayBufferToBase64(buffer) {
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            const len = bytes.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return btoa(binary);
+        }
+
+        async function downloadExcelFromGitHub() {
+            try {
+                const response = await fetch(
+                    `${GITHUB_CONFIG.API_URL}/repos/${GITHUB_CONFIG.REPO}/contents/${GITHUB_CONFIG.EXCEL_PATH}`,
+                    {
+                        headers: {
+                            'Authorization': `token ${GITHUB_CONFIG.TOKEN}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    }
+                );
+                
+                if (response.ok) {
+                    const fileInfo = await response.json();
+                    excelSHA = fileInfo.sha;
+                    
+                    // Decodificar base64
+                    const excelContent = atob(fileInfo.content);
+                    
+                    // Convertir a ArrayBuffer
+                    const arrayBuffer = new Uint8Array(excelContent.length);
+                    for (let i = 0; i < excelContent.length; i++) {
+                        arrayBuffer[i] = excelContent.charCodeAt(i);
+                    }
+                    
+                    // Convertir Excel a JSON para cargar en memoria
+                    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const excelJson = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    // Actualizar array evaluaciones desde Excel
+                    evaluaciones = excelJson.map(row => ({
+                        id: row.ID || Date.now() + Math.random().toString(36).substr(2, 9),
+                        timestamp: new Date().toISOString(),
+                        studentName: row.Estudiante || '',
+                        semester: row.Semestre || '',
+                        subject: row.Asignatura || '',
+                        professor: row.Catedrático || '',
+                        career: row.Carrera || '',
+                        average: parseFloat(row['Calificación Promedio']) || 0,
+                        recommendation: {
+                            wouldRecommend: row.Recomendación === 'Sí' ? 'si' : 'no',
+                            reason: row['Razón Recomendación'] || ''
+                        },
+                        responses: {
+                            'O1': row['Cumple Plan Estudios'] || '',
+                            'O2': row['Recursos TIC útiles'] || '',
+                            'O3': row['Aprovechamiento Tiempo'] || '',
+                            'O4': row['Presentación Personal'] || '',
+                            'O5': row['Aspectos valorados'] || '',
+                            'O6': row.Sugerencias || ''
+                        }
+                    }));
+                    
+                    // Guardar en localStorage para compatibilidad
+                    saveData();
+                    
+                    return arrayBuffer;
+                } else if (response.status === 404) {
+                    // Si el archivo no existe, crear uno nuevo
+                    return createNewExcelFile();
+                }
+                return null;
+                
+            } catch (error) {
+                console.error('Error descargando Excel:', error);
+                return createNewExcelFile();
+            }
+        }
+
+        function createNewExcelFile() {
+            // Crear encabezados
+            const headers = [
+                'ID', 'Fecha', 'Hora', 'Estudiante', 'Semestre', 'Asignatura', 
+                'Catedrático', 'Carrera', 'Calificación Promedio', 'Recomendación',
+                'Razón Recomendación', 'Cumple Plan Estudios', 'Recursos TIC útiles',
+                'Aprovechamiento Tiempo', 'Presentación Personal', 'Aspectos valorados', 'Sugerencias'
+            ];
+            
+            const worksheet = XLSX.utils.aoa_to_sheet([headers]);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Evaluaciones');
+            
+            const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+            return excelBuffer;
+        }
+
+        async function uploadExcelToGitHub(excelBase64) {
+            try {
+                const response = await fetch(
+                    `${GITHUB_CONFIG.API_URL}/repos/${GITHUB_CONFIG.REPO}/contents/${GITHUB_CONFIG.EXCEL_PATH}`,
+                    {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `token ${GITHUB_CONFIG.TOKEN}`,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            message: `Evaluación agregada - ${new Date().toLocaleString('es-MX')}`,
+                            content: excelBase64,
+                            sha: excelSHA || undefined
+                        })
+                    }
+                );
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    excelSHA = result.content.sha;
+                    return true;
+                }
+                return false;
+                
+            } catch (error) {
+                console.error('Error subiendo Excel:', error);
+                return false;
             }
         }
 
@@ -1362,7 +1548,7 @@
                 showTab(targetTab);
                 
                 // Descargar datos de GitHub al acceder
-                downloadFromGitHub().then(() => {
+                downloadExcelFromGitHub().then(() => {
                     updateDashboard();
                 });
                 
@@ -1417,199 +1603,6 @@
             }
         }
 
-        // ========== FUNCIONES GITHUB (OCULTAS AL USUARIO) ==========
-        async function uploadSingleEvaluation(evaluation) {
-            try {
-                // Primero obtener datos actuales de GitHub
-                const response = await fetch(
-                    `${GITHUB_CONFIG.API_URL}/repos/${GITHUB_CONFIG.REPO}/contents/${GITHUB_CONFIG.FILE_PATH}`,
-                    {
-                        headers: {
-                            'Authorization': `token ${GITHUB_CONFIG.TOKEN}`,
-                            'Accept': 'application/vnd.github.v3+json'
-                        }
-                    }
-                );
-                
-                let currentContent = { evaluations: [], metadata: {} };
-                let sha = '';
-                
-                if (response.ok) {
-                    const fileInfo = await response.json();
-                    sha = fileInfo.sha;
-                    currentContent = JSON.parse(atob(fileInfo.content));
-                }
-                
-                // Agregar nueva evaluación (evitar duplicados)
-                const exists = currentContent.evaluations.some(e => e.id === evaluation.id);
-                if (!exists) {
-                    currentContent.evaluations.push(evaluation);
-                    currentContent.metadata = {
-                        ...currentContent.metadata,
-                        lastUpdate: new Date().toISOString(),
-                        total: currentContent.evaluations.length
-                    };
-                    
-                    // Subir a GitHub
-                    const updateResponse = await fetch(
-                        `${GITHUB_CONFIG.API_URL}/repos/${GITHUB_CONFIG.REPO}/contents/${GITHUB_CONFIG.FILE_PATH}`,
-                        {
-                            method: 'PUT',
-                            headers: {
-                                'Authorization': `token ${GITHUB_CONFIG.TOKEN}`,
-                                'Accept': 'application/vnd.github.v3+json',
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                message: `Evaluación de ${evaluation.studentName} - ${evaluation.professor}`,
-                                content: btoa(JSON.stringify(currentContent, null, 2)),
-                                sha: sha
-                            })
-                        }
-                    );
-                    
-                    return updateResponse.ok;
-                }
-                return true; // Ya existe, no es error
-                
-            } catch (error) {
-                console.error('Error subiendo evaluación a GitHub:', error);
-                return false;
-            }
-        }
-
-        async function uploadToGitHub() {
-            if (evaluaciones.length === 0) {
-                return false;
-            }
-            
-            try {
-                const data = {
-                    evaluations: evaluaciones,
-                    metadata: {
-                        lastSync: new Date().toISOString(),
-                        total: evaluaciones.length,
-                        system: 'Evaluación Docente'
-                    }
-                };
-                
-                const contentBase64 = btoa(JSON.stringify(data, null, 2));
-                
-                // Obtener SHA si el archivo existe
-                let sha = '';
-                try {
-                    const getResponse = await fetch(
-                        `${GITHUB_CONFIG.API_URL}/repos/${GITHUB_CONFIG.REPO}/contents/${GITHUB_CONFIG.FILE_PATH}`,
-                        {
-                            headers: {
-                                'Authorization': `token ${GITHUB_CONFIG.TOKEN}`,
-                                'Accept': 'application/vnd.github.v3+json'
-                            }
-                        }
-                    );
-                    
-                    if (getResponse.ok) {
-                        const fileInfo = await getResponse.json();
-                        sha = fileInfo.sha;
-                    }
-                } catch (e) {
-                    // Archivo no existe
-                }
-                
-                // Subir archivo
-                const response = await fetch(
-                    `${GITHUB_CONFIG.API_URL}/repos/${GITHUB_CONFIG.REPO}/contents/${GITHUB_CONFIG.FILE_PATH}`,
-                    {
-                        method: 'PUT',
-                        headers: {
-                            'Authorization': `token ${GITHUB_CONFIG.TOKEN}`,
-                            'Accept': 'application/vnd.github.v3+json',
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            message: `Sincronización completa - ${new Date().toLocaleString('es-MX')}`,
-                            content: contentBase64,
-                            sha: sha || undefined
-                        })
-                    }
-                );
-                
-                if (response.ok) {
-                    updateSyncStatus('✅ Datos sincronizados con la nube', 'success');
-                    return true;
-                }
-                return false;
-                
-            } catch (error) {
-                console.error('Error en uploadToGitHub:', error);
-                updateSyncStatus('❌ Error sincronizando', 'error');
-                return false;
-            }
-        }
-
-        async function downloadFromGitHub() {
-            try {
-                const response = await fetch(
-                    `${GITHUB_CONFIG.API_URL}/repos/${GITHUB_CONFIG.REPO}/contents/${GITHUB_CONFIG.FILE_PATH}`,
-                    {
-                        headers: {
-                            'Authorization': `token ${GITHUB_CONFIG.TOKEN}`,
-                            'Accept': 'application/vnd.github.v3+json'
-                        }
-                    }
-                );
-                
-                if (response.ok) {
-                    const fileInfo = await response.json();
-                    const content = JSON.parse(atob(fileInfo.content));
-                    
-                    if (content.evaluations && Array.isArray(content.evaluations)) {
-                        // Combinar sin duplicados
-                        const existingIds = new Set(evaluaciones.map(e => e.id));
-                        const newEvaluations = content.evaluations.filter(e => !existingIds.has(e.id));
-                        
-                        if (newEvaluations.length > 0) {
-                            evaluaciones.push(...newEvaluations);
-                            saveData();
-                            updateSyncStatus(`✅ ${newEvaluations.length} evaluaciones descargadas`, 'success');
-                            return true;
-                        }
-                    }
-                }
-                return false;
-                
-            } catch (error) {
-                console.error('Error en downloadFromGitHub:', error);
-                return false;
-            }
-        }
-
-        async function forceSyncGitHub() {
-            updateSyncStatus('🔄 Sincronizando con la nube...', 'syncing');
-            
-            // Primero descargar
-            await downloadFromGitHub();
-            
-            // Luego subir
-            await uploadToGitHub();
-            
-            // Actualizar dashboard
-            updateDashboard();
-            showFormattedData();
-        }
-
-        function updateSyncStatus(message, type = '') {
-            const elements = ['syncStatus', 'dataSyncStatus'];
-            elements.forEach(id => {
-                const element = document.getElementById(id);
-                if (element) {
-                    element.textContent = message;
-                    element.className = 'sync-status';
-                    if (type) element.classList.add(type);
-                }
-            });
-        }
-
         // ========== FUNCIONES DEL DASHBOARD ==========
         function updateDashboard() {
             // Obtener filtros
@@ -1660,7 +1653,7 @@
             const rate = (recommendations / total) * 100;
             document.getElementById('recommendationRate').textContent = rate.toFixed(1) + '%';
             
-            const professors = new Set(evaluations.map(e => e.professor)).size;
+            const professors = new Set(evaluaciones.map(e => e.professor)).size;
             document.getElementById('totalProfessors').textContent = professors;
         }
 
@@ -1997,6 +1990,45 @@
             
             container.innerHTML = html;
             document.getElementById('evaluationCount').textContent = `${evaluations.length} evaluación(es)`;
+        }
+
+        // ========== FUNCIONES DE SINCRONIZACIÓN ==========
+        async function forceSyncGitHub() {
+            updateSyncStatus('🔄 Sincronizando con la nube...', 'syncing');
+            
+            // Descargar datos actualizados
+            await downloadExcelFromGitHub();
+            
+            // Actualizar dashboard
+            updateDashboard();
+            showFormattedData();
+            
+            updateSyncStatus('✅ Datos sincronizados', 'success');
+        }
+
+        function updateSyncStatus(message, type = '') {
+            const elements = ['syncStatus', 'dataSyncStatus'];
+            elements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.textContent = message;
+                    element.className = 'sync-status';
+                    if (type) element.classList.add(type);
+                }
+            });
+        }
+
+        async function downloadFromGitHub() {
+            try {
+                await downloadExcelFromGitHub();
+                updateSyncStatus('✅ Datos descargados de la nube', 'success');
+                if (isAuthenticated) {
+                    updateDashboard();
+                    showFormattedData();
+                }
+            } catch (error) {
+                updateSyncStatus('❌ Error descargando datos', 'error');
+            }
         }
     </script>
 </body>
