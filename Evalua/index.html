@@ -741,7 +741,7 @@
                 <div id="questionsContainer"></div>
 
                 <button type="submit" class="btn-submit" id="submitButton">
-                    💾 Guardar Evaluación
+                    💾 Enviar Evaluación
                 </button>
             </form>
         </div>
@@ -783,7 +783,7 @@
 
             <div class="export-buttons">
                 <button class="export-btn" onclick="exportToExcel()">📊 Exportar a Excel</button>
-                <button class="export-btn warning" onclick="forceSyncGitHub()">🔄 Sincronizar Datos</button>
+                <button class="export-btn warning" onclick="forceSyncGitHub()">🔄 Actualizar Datos</button>
                 <button class="export-btn" onclick="logout()">🚪 Cerrar Sesión</button>
             </div>
 
@@ -884,7 +884,7 @@
                         <button class="data-btn" onclick="clearLocalData()">🗑️ Limpiar Local</button>
                     </div>
                     <div class="data-btn-row">
-                        <button class="data-btn warning" onclick="forceSyncGitHub()">🔄 Sincronizar</button>
+                        <button class="data-btn warning" onclick="forceSyncGitHub()">🔄 Actualizar</button>
                         <button class="data-btn" onclick="showFormattedData()">👁️ Ver Datos</button>
                     </div>
                     <div class="data-btn-row">
@@ -922,15 +922,14 @@
 
     <script>
         // ========== CONFIGURACIÓN GITHUB (REEMPLAZA ESTOS VALORES) ==========
-        // ⚠️ IMPORTANTE: REEMPLAZA ESTOS VALORES CON TU CONFIGURACIÓN REAL
         const GITHUB_CONFIG = {
             API_URL: 'https://api.github.com',
-            EXCEL_PATH: 'evaluaciones.xlsx',  // ARCHIVO EXCEL EN GITHUB
+            EXCEL_PATH: 'evaluaciones.xlsx',  // ARCHIVO EXCEL PRINCIPAL
             TOKEN: '',  // ← SE MANTIENE TU TOKEN ACTUAL
             REPO: 'cetug-biblioteca/Evalua'  // ← REEMPLAZA con tu usuario/repo
         };
 
-         (function setupToken() {
+        (function setupToken() {
             const savedToken = localStorage.getItem('github_token');
             if (savedToken && savedToken.startsWith('ghp_')) {
                 GITHUB_CONFIG.TOKEN = savedToken;
@@ -946,7 +945,7 @@
         // ========== CONFIGURACIÓN DEL SISTEMA ==========
         const SECURITY_CONFIG = {
             ADMIN_PASSWORD: 'admin123',
-            SESSION_TIMEOUT: 60 * 60 * 1000, // 1 hora
+            SESSION_TIMEOUT: 60 * 60 * 1000,
             STORAGE_KEYS: {
                 EVALUATIONS: 'evaluaciones_docentes',
                 ADMIN_AUTH: 'admin_autenticado',
@@ -958,7 +957,8 @@
         let evaluaciones = JSON.parse(localStorage.getItem(SECURITY_CONFIG.STORAGE_KEYS.EVALUATIONS)) || [];
         let isAuthenticated = false;
         let ratingChart = null;
-        let excelSHA = ''; // PARA SABER EL SHA DEL ARCHIVO EXCEL EN GITHUB
+        let excelSHA = '';
+        let isSaving = false; // Para evitar múltiples guardados simultáneos
 
         // ========== ESTRUCTURA DE DIMENSIONES ==========
         const dimensions = [
@@ -1057,11 +1057,8 @@
             document.getElementById('evaluationForm').addEventListener('submit', handleSubmit);
             showTab('evaluation');
             
-            // Cargar datos desde GitHub Excel automáticamente
-            setTimeout(async () => {
-                await downloadExcelFromGitHub();
-                console.log('Datos cargados de GitHub Excel automáticamente');
-            }, 1000);
+            // Cargar datos en segundo plano SIN mostrar al usuario
+            loadEvaluationsSilently();
             
             // Event listeners
             document.getElementById('loginModal').addEventListener('click', function(e) {
@@ -1083,7 +1080,6 @@
 
             let questionCount = 0;
 
-            // Dimensiones con preguntas de rating
             dimensions.forEach(dimension => {
                 const dimensionDiv = document.createElement('div');
                 dimensionDiv.className = 'dimension';
@@ -1172,6 +1168,11 @@
                 return;
             }
             
+            // Desactivar botón para evitar múltiples envíos
+            const submitButton = document.getElementById('submitButton');
+            submitButton.disabled = true;
+            submitButton.textContent = '⏳ Enviando...';
+            
             const evaluation = {
                 id: Date.now() + Math.random().toString(36).substr(2, 9),
                 timestamp: new Date().toISOString(),
@@ -1197,21 +1198,27 @@
             evaluaciones.push(evaluation);
             saveData();
 
-            // 2. Intentar guardar en GitHub Excel (ESTO ES LO NUEVO)
             try {
+                // 2. Guardar en GitHub Excel (EN SEGUNDO PLANO - SIN MOSTRAR AL USUARIO)
                 const success = await saveEvaluationToGitHubExcel(evaluation);
+                
                 if (success) {
-                    alert('✅ Evaluación guardada localmente y en Excel en la nube');
+                    alert('✅ Evaluación enviada exitosamente');
                 } else {
-                    alert('✅ Evaluación guardada localmente (error conectando con la nube)');
+                    alert('⚠️ Evaluación guardada localmente. Se sincronizará automáticamente.');
                 }
             } catch (error) {
-                alert('✅ Evaluación guardada localmente');
+                console.error('Error:', error);
+                alert('✅ Evaluación enviada. Los datos se sincronizarán en segundo plano.');
             }
 
             // Limpiar formulario
             event.target.reset();
             checkDuplicateEvaluation();
+            
+            // Restaurar botón
+            submitButton.disabled = false;
+            submitButton.textContent = '💾 Enviar Evaluación';
         }
 
         function calculateAverageFromForm() {
@@ -1259,11 +1266,18 @@
             }
         }
 
-        // ========== FUNCIONES GITHUB EXCEL ==========
+        // ========== FUNCIONES GITHUB EXCEL (SILENCIOSAS) ==========
         async function saveEvaluationToGitHubExcel(evaluation) {
+            if (isSaving) return false; // Evitar múltiples guardados simultáneos
+            isSaving = true;
+            
             try {
                 // 1. Descargar Excel actual de GitHub
                 const excelData = await downloadExcelFromGitHub();
+                if (!excelData) {
+                    isSaving = false;
+                    return false;
+                }
                 
                 // 2. Convertir Excel a JSON
                 const workbook = XLSX.read(excelData, { type: 'array' });
@@ -1293,25 +1307,26 @@
                     'Sugerencias': evaluation.responses['O6'] || ''
                 };
                 
-                // 5. Agregar nueva fila
                 existingData.push(newRow);
                 
-                // 6. Crear nuevo Excel
+                // 5. Crear nuevo Excel
                 const newWorksheet = XLSX.utils.json_to_sheet(existingData);
                 const newWorkbook = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, 'Evaluaciones');
                 
-                // 7. Convertir a base64
+                // 6. Convertir a base64
                 const excelBuffer = XLSX.write(newWorkbook, { bookType: 'xlsx', type: 'array' });
                 const excelBase64 = arrayBufferToBase64(excelBuffer);
                 
-                // 8. Subir a GitHub
+                // 7. Subir a GitHub (SILENCIOSAMENTE)
                 const uploadSuccess = await uploadExcelToGitHub(excelBase64);
                 
+                isSaving = false;
                 return uploadSuccess;
                 
             } catch (error) {
-                console.error('Error guardando en Excel GitHub:', error);
+                console.error('Error guardando en Excel:', error);
+                isSaving = false;
                 return false;
             }
         }
@@ -1351,37 +1366,8 @@
                         arrayBuffer[i] = excelContent.charCodeAt(i);
                     }
                     
-                    // Convertir Excel a JSON para cargar en memoria
-                    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const excelJson = XLSX.utils.sheet_to_json(worksheet);
-                    
-                    // Actualizar array evaluaciones desde Excel
-                    evaluaciones = excelJson.map(row => ({
-                        id: row.ID || Date.now() + Math.random().toString(36).substr(2, 9),
-                        timestamp: new Date().toISOString(),
-                        studentName: row.Estudiante || '',
-                        semester: row.Semestre || '',
-                        subject: row.Asignatura || '',
-                        professor: row.Catedrático || '',
-                        career: row.Carrera || '',
-                        average: parseFloat(row['Calificación Promedio']) || 0,
-                        recommendation: {
-                            wouldRecommend: row.Recomendación === 'Sí' ? 'si' : 'no',
-                            reason: row['Razón Recomendación'] || ''
-                        },
-                        responses: {
-                            'O1': row['Cumple Plan Estudios'] || '',
-                            'O2': row['Recursos TIC útiles'] || '',
-                            'O3': row['Aprovechamiento Tiempo'] || '',
-                            'O4': row['Presentación Personal'] || '',
-                            'O5': row['Aspectos valorados'] || '',
-                            'O6': row.Sugerencias || ''
-                        }
-                    }));
-                    
-                    // Guardar en localStorage para compatibilidad
-                    saveData();
+                    // Actualizar datos locales SILENCIOSAMENTE
+                    updateLocalDataFromExcel(arrayBuffer);
                     
                     return arrayBuffer;
                 } else if (response.status === 404) {
@@ -1392,7 +1378,46 @@
                 
             } catch (error) {
                 console.error('Error descargando Excel:', error);
-                return createNewExcelFile();
+                return null;
+            }
+        }
+
+        function updateLocalDataFromExcel(excelBuffer) {
+            try {
+                // Convertir Excel a JSON
+                const workbook = XLSX.read(excelBuffer, { type: 'array' });
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                const excelJson = XLSX.utils.sheet_to_json(worksheet);
+                
+                // Actualizar array evaluaciones desde Excel
+                evaluaciones = excelJson.map(row => ({
+                    id: row.ID || Date.now() + Math.random().toString(36).substr(2, 9),
+                    timestamp: new Date().toISOString(),
+                    studentName: row.Estudiante || '',
+                    semester: row.Semestre || '',
+                    subject: row.Asignatura || '',
+                    professor: row.Catedrático || '',
+                    career: row.Carrera || '',
+                    average: parseFloat(row['Calificación Promedio']) || 0,
+                    recommendation: {
+                        wouldRecommend: row.Recomendación === 'Sí' ? 'si' : 'no',
+                        reason: row['Razón Recomendación'] || ''
+                    },
+                    responses: {
+                        'O1': row['Cumple Plan Estudios'] || '',
+                        'O2': row['Recursos TIC útiles'] || '',
+                        'O3': row['Aprovechamiento Tiempo'] || '',
+                        'O4': row['Presentación Personal'] || '',
+                        'O5': row['Aspectos valorados'] || '',
+                        'O6': row.Sugerencias || ''
+                    }
+                }));
+                
+                // Guardar en localStorage SILENCIOSAMENTE
+                localStorage.setItem(SECURITY_CONFIG.STORAGE_KEYS.EVALUATIONS, JSON.stringify(evaluaciones));
+                
+            } catch (error) {
+                console.error('Error actualizando datos locales:', error);
             }
         }
 
@@ -1432,16 +1457,21 @@
                     }
                 );
                 
-                if (response.ok) {
-                    const result = await response.json();
-                    excelSHA = result.content.sha;
-                    return true;
-                }
-                return false;
+                return response.ok;
                 
             } catch (error) {
                 console.error('Error subiendo Excel:', error);
                 return false;
+            }
+        }
+
+        // ========== FUNCIONES SILENCIOSAS ==========
+        async function loadEvaluationsSilently() {
+            try {
+                await downloadExcelFromGitHub();
+                console.log('Datos cargados silenciosamente desde GitHub');
+            } catch (error) {
+                console.log('Error cargando datos silenciosamente:', error);
             }
         }
 
@@ -1547,10 +1577,8 @@
                 const targetTab = document.getElementById('loginModal').getAttribute('data-target-tab') || 'dashboard';
                 showTab(targetTab);
                 
-                // Descargar datos de GitHub al acceder
-                downloadExcelFromGitHub().then(() => {
-                    updateDashboard();
-                });
+                // Actualizar datos al acceder
+                updateDashboard();
                 
             } else {
                 document.getElementById('loginError').textContent = 'Contraseña incorrecta';
@@ -1994,7 +2022,7 @@
 
         // ========== FUNCIONES DE SINCRONIZACIÓN ==========
         async function forceSyncGitHub() {
-            updateSyncStatus('🔄 Sincronizando con la nube...', 'syncing');
+            updateSyncStatus('🔄 Actualizando datos...', 'syncing');
             
             // Descargar datos actualizados
             await downloadExcelFromGitHub();
@@ -2003,7 +2031,7 @@
             updateDashboard();
             showFormattedData();
             
-            updateSyncStatus('✅ Datos sincronizados', 'success');
+            updateSyncStatus('✅ Datos actualizados', 'success');
         }
 
         function updateSyncStatus(message, type = '') {
