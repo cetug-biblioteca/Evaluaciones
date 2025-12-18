@@ -1,0 +1,1990 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Evaluación Docente</title>
+    
+    <!-- Librerías CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <style>
+        /* ========== RESET Y CONFIGURACIÓN GENERAL ========== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* ========== HEADER Y LOGO ========== */
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #2c3e50;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .logo {
+            max-width: 120px;
+            height: auto;
+        }
+
+        .title-container {
+            text-align: center;
+        }
+
+        .main-title {
+            color: #0066cc;
+            font-size: 2em;
+            margin-bottom: 5px;
+            font-weight: bold;
+            line-height: 1.2;
+        }
+
+        .institution-name {
+            color: #0066cc;
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .evaluation-title {
+            color: #2c3e50;
+            font-size: 1.8em;
+            font-weight: bold;
+            margin-top: 10px;
+            padding: 10px;
+            background: linear-gradient(135deg, #3498db, #2c3e50);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* ========== PESTAÑAS DE NAVEGACIÓN ========== */
+        .nav-tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+            background: white;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .nav-tab {
+            padding: 10px 20px;
+            margin: 0 10px;
+            background: #34495e;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.3s;
+        }
+
+        .nav-tab:hover {
+            background: #2c3e50;
+        }
+
+        .nav-tab.active {
+            background: #27ae60;
+        }
+
+        .nav-tab.locked {
+            background: #95a5a6;
+            position: relative;
+            cursor: not-allowed;
+        }
+
+        .nav-tab.locked::after {
+            content: '🔒';
+            margin-left: 5px;
+        }
+
+        /* ========== CONTENIDO DE PESTAÑAS ========== */
+        .tab-content {
+            display: none;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* ========== FORMULARIOS ========== */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        select, input[type="text"], input[type="password"], textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+
+        .question {
+            background: white;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #3498db;
+            border-radius: 4px;
+        }
+
+        .rating-options {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+
+        .rating-option {
+            text-align: center;
+            flex: 1;
+        }
+
+        .dimension-header {
+            background: #34495e;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin: 25px 0 15px 0;
+        }
+
+        /* ========== BOTONES ========== */
+        .btn-submit {
+            background: #27ae60;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.1em;
+            width: 100%;
+            margin-top: 20px;
+            transition: background 0.3s;
+        }
+
+        .btn-submit:hover {
+            background: #219a52;
+        }
+
+        .btn-submit:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
+
+        .export-btn {
+            background: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 0 10px;
+            font-size: 1em;
+            transition: background 0.3s;
+        }
+
+        .export-btn:hover {
+            background: #2980b9;
+        }
+
+        .export-btn.warning {
+            background: #f39c12;
+        }
+
+        .export-btn.warning:hover {
+            background: #e67e22;
+        }
+
+        .export-btn.danger {
+            background: #e74c3c;
+        }
+
+        .export-btn.danger:hover {
+            background: #c0392b;
+        }
+
+        .data-btn {
+            background: #3498db;
+            color: white;
+            padding: 12px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            flex: 1;
+            text-align: center;
+            transition: background 0.3s;
+            min-width: 120px;
+        }
+
+        .data-btn:hover {
+            background: #2980b9;
+        }
+
+        .data-btn.warning {
+            background: #f39c12;
+        }
+
+        .data-btn.warning:hover {
+            background: #e67e22;
+        }
+
+        .data-btn.success {
+            background: #27ae60;
+        }
+
+        .data-btn.success:hover {
+            background: #219a52;
+        }
+
+        .data-btn.danger {
+            background: #e74c3c;
+        }
+
+        .data-btn.danger:hover {
+            background: #c0392b;
+        }
+
+        /* ========== DASHBOARD Y ESTADÍSTICAS ========== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .stat-label {
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        /* ========== NOTIFICACIONES Y MENSAJES ========== */
+        .confidentiality-notice {
+            background: #e8f4fd;
+            border: 1px solid #3498db;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            font-size: 0.9em;
+            color: #2c3e50;
+        }
+
+        .duplicate-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            color: #856404;
+            display: none;
+        }
+
+        .rating-info {
+            background: #e8f6f3;
+            border: 1px solid #27ae60;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            text-align: center;
+            font-size: 0.9em;
+            color: #2c3e50;
+        }
+
+        .admin-info {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 0.9em;
+            color: #7f8c8d;
+        }
+
+        .clean-section {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        /* ========== HIGHLIGHT CARDS ========== */
+        .highlight-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .highlight-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            border: 3px solid transparent;
+        }
+
+        .highlight-card.best {
+            border-color: #27ae60;
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            color: white;
+        }
+
+        .highlight-card.worst {
+            border-color: #e74c3c;
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+        }
+
+        /* ========== CONTROLES DE DATOS ========== */
+        .data-controls {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3498db;
+        }
+
+        .data-filters {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .data-buttons-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .data-btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .data-btn-row {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        /* ========== DATOS CRUDOS ========== */
+        .raw-data-container {
+            background: white;
+            border-radius: 8px;
+            padding: 0;
+            margin-top: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .raw-data-header {
+            background: #34495e;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .raw-data-content {
+            max-height: 600px;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        /* ========== EVALUATION CARDS ========== */
+        .evaluation-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: transform 0.2s;
+        }
+
+        .evaluation-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .evaluation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #3498db;
+        }
+
+        /* ========== UTILIDADES ========== */
+        .hidden {
+            display: none;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+            font-style: italic;
+        }
+
+        .sync-status {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            text-align: center;
+            font-size: 0.9em;
+        }
+
+        .sync-status.syncing {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .sync-status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .sync-status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* ========== RESPONSIVE ========== */
+        @media (max-width: 768px) {
+            .nav-tabs {
+                flex-direction: column;
+            }
+            
+            .nav-tab {
+                margin: 5px 0;
+            }
+            
+            .rating-options {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .export-buttons {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .export-btn {
+                margin: 5px 0;
+            }
+
+            .highlight-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .data-filters {
+                flex-direction: column;
+            }
+
+            .filter-group {
+                min-width: 100%;
+            }
+
+            .evaluation-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .data-buttons-grid {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .data-btn-row {
+                flex-direction: column;
+            }
+
+            .data-btn {
+                width: 100%;
+                margin: 2px 0;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .data-buttons-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .data-btn {
+                padding: 10px 12px;
+                font-size: 0.85em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- ========== HEADER ========== -->
+        <header>
+            <div class="logo-container">
+                <img src="image.png" alt="Logo CETUG" class="logo">
+                <div class="title-container">
+                    <div class="main-title">Centro de Estudios Tecnológicos y Universitarios del Golfo, A.C.</div>
+                    <div class="institution-name">Escuela Superior de Medicina Orizaba, Ver.</div>
+                    <div class="evaluation-title">Evaluación de Docentes</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- ========== PESTAÑAS DE NAVEGACIÓN ========== -->
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="showTab('evaluation')">📝 Evaluación</button>
+            <button class="nav-tab locked" id="dashboardTab" onclick="requestDashboardAccess(event)">📊 Dashboard</button>
+            <button class="nav-tab locked" id="dataTab" onclick="requestDashboardAccess(event)">💾 Datos</button>
+        </div>
+
+        <!-- ========== PESTAÑA DE EVALUACIÓN ========== -->
+        <div id="evaluation" class="tab-content active">
+            <form id="evaluationForm">
+                <div class="form-section">
+                    <h2>I. DATOS GENERALES</h2>
+                    
+                    <div class="form-group">
+                        <label for="studentName">Nombre del Estudiante:</label>
+                        <input type="text" id="studentName" name="studentName" placeholder="Ingrese su nombre completo" required>
+                        <small style="color: #7f8c8d;">Solo para verificación de duplicidad - No será visible para administradores</small>
+                    </div>
+                </div>
+
+                <div class="confidentiality-notice">
+                    <h4>🔒 Confidencialidad Garantizada</h4>
+                    <p>Su nombre se solicita únicamente para evitar duplicidad en las evaluaciones. <strong>Los administradores no tendrán acceso a esta información</strong> y será utilizada exclusivamente para validar que cada estudiante evalúe una sola vez por materia y catedrático.</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="semester">Semestre/Año:</label>
+                    <input type="text" id="semester" name="semester" placeholder="Ej: 2024-1" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="subject">Asignatura:</label>
+                    <select id="subject" name="subject" required onchange="checkDuplicateEvaluation()">
+                        <option value="" disabled selected>Seleccione una asignatura</option>
+                        <option value="Alergología">Alergología</option>
+                        <option value="Anatomía Patológica Especial">Anatomía Patológica Especial</option>
+                        <option value="Anatomía Patológica General">Anatomía Patológica General</option>
+                        <option value="Anestesiología">Anestesiología</option>
+                        <option value="Antropología Médica">Antropología Médica</option>
+                        <option value="Bioquímica Médica II">Bioquímica Médica II</option>
+                        <option value="Cirugía">Cirugía</option>
+                        <option value="Clinopatología del Aparato Cardiovascular">Clinopatología del Aparato Cardiovascular</option>
+                        <option value="Clinopatología del Aparato Digestivo">Clinopatología del Aparato Digestivo</option>
+                        <option value="Clinopatología del Aparato Músculo-Esquelético">Clinopatología del Aparato Músculo-Esquelético</option>
+                        <option value="Clinopatología del Aparato Respiratorio">Clinopatología del Aparato Respiratorio</option>
+                        <option value="Dermatología">Dermatología</option>
+                        <option value="Endocrinología">Endocrinología</option>
+                        <option value="Estomatología">Estomatología</option>
+                        <option value="Farmacología">Farmacología</option>
+                        <option value="Fisiología Humana">Fisiología Humana</option>
+                        <option value="Genética">Genética</option>
+                        <option value="Ginecología y Obstetricia I">Ginecología y Obstetricia I</option>
+                        <option value="Ginecología y Obstetricia II">Ginecología y Obstetricia II</option>
+                        <option value="Hematología">Hematología</option>
+                        <option value="Infectología">Infectología</option>
+                        <option value="Introducción a la Cirugía">Introducción a la Cirugía</option>
+                        <option value="Medicina Legal">Medicina Legal</option>
+                        <option value="Metodología de la Investigación I">Metodología de la Investigación I</option>
+                        <option value="Nefrología">Nefrología</option>
+                        <option value="Nutriología">Nutriología</option>
+                        <option value="Oftalmología">Oftalmología</option>
+                        <option value="Pediatría">Pediatría</option>
+                        <option value="Urgencias Médico-Quirúrgicas">Urgencias Médico-Quirúrgicas</option>
+                        <option value="Urología">Urología</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="professor">Catedrático:</label>
+                    <select id="professor" name="professor" required onchange="checkDuplicateEvaluation()">
+                        <option value="" disabled selected>Seleccione un catedrático</option>
+                        <option value="Dra. Careli Neri Juárez">Dra. Careli Neri Juárez</option>
+                        <option value="Dr. Carlos Omar Cárdenas García">Dr. Carlos Omar Cárdenas García</option>
+                        <option value="Dra. Carolina Prieto Martínez">Dra. Carolina Prieto Martínez</option>
+                        <option value="Dr. César Miguel César García">Dr. César Miguel César García</option>
+                        <option value="Dr. Erick Odín Gómez Mendoza">Dr. Erick Odín Gómez Mendoza</option>
+                        <option value="Dr. Fortino Domínguez Sánchez">Dr. Fortino Domínguez Sánchez</option>
+                        <option value="Dr. Gerardo Alpuche San Miguel">Dr. Gerardo Alpuche San Miguel</option>
+                        <option value="Dr. Gerardo Marín Cid">Dr. Gerardo Marín Cid</option>
+                        <option value="Ing. Gustavo Alpuche San Miguel">Ing. Gustavo Alpuche San Miguel</option>
+                        <option value="Dr. Hugo Martínez Ramírez">Dr. Hugo Martínez Ramírez</option>
+                        <option value="Dr. Jaime Omar Jiménez Sandoval">Dr. Jaime Omar Jiménez Sandoval</option>
+                        <option value="Dr. Javier Uriel Yeo Nava">Dr. Javier Uriel Yeo Nava</option>
+                        <option value="Dr. Jesús Omar Hernández Martínez">Dr. Jesús Omar Hernández Martínez</option>
+                        <option value="Dr. Jhonathan Andrés Malagón Martínez">Dr. Jhonathan Andrés Malagón Martínez</option>
+                        <option value="Dr. José Arturo Córdova Fernández">Dr. José Arturo Córdova Fernández</option>
+                        <option value="Dr. Juan Ángel Camacho Quiroz">Dr. Juan Ángel Camacho Quiroz</option>
+                        <option value="Dr. Juan Pablo Herrera Gómez">Dr. Juan Pablo Herrera Gómez</option>
+                        <option value="Dr. Manuel Wistano Orozco Garza">Dr. Manuel Wistano Orozco Garza</option>
+                        <option value="Dr. Marcos Lezama Herrera">Dr. Marcos Lezama Herrera</option>
+                        <option value="Dra. María de Jesús De La Cruz Martínez">Dra. María de Jesús De La Cruz Martínez</option>
+                        <option value="Dra. María Esther Villagómez Hernández">Dra. María Esther Villagómez Hernández</option>
+                        <option value="Dr. Miguel Ángel Ramírez Macías">Dr. Miguel Ángel Ramírez Macías</option>
+                        <option value="Dr. Miguel Ricardo Sotelo García">Dr. Miguel Ricardo Sotelo García</option>
+                        <option value="Dra. Nancy Virginia Ortega Betancourt">Dra. Nancy Virginia Ortega Betancourt</option>
+                        <option value="Dra. Nayeli Rosas Ameca">Dra. Nayeli Rosas Ameca</option>
+                        <option value="Dra. Norma Victoria Álvarez">Dra. Norma Victoria Álvarez</option>
+                        <option value="Dr. Rafael Rodrigo Criollo Macías">Dr. Rafael Rodrigo Criollo Macías</option>
+                        <option value="Dra. Raquel Concepción Goytia Acevedo">Dra. Raquel Concepción Goytia Acevedo</option>
+                        <option value="Dr. Ricardo Alonso Cano">Dr. Ricardo Alonso Cano</option>
+                        <option value="Dr. Ricardo López Monterrosas">Dr. Ricardo López Monterrosas</option>
+                        <option value="Dra. Rubí del Carmen Rojas Rodríguez">Dra. Rubí del Carmen Rojas Rodríguez</option>
+                        <option value="Dr. Said Uscanga Reyes">Dr. Said Uscanga Reyes</option>
+                        <option value="Dra. Veronica Cruz Peña">Dra. Veronica Cruz Peña</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="career">Carrera:</label>
+                    <input type="text" id="career" name="career" placeholder="Ingrese su carrera" required>
+                </div>
+
+                <div class="rating-info">
+                    <h4>📊 Escala de Calificación</h4>
+                    <p>Utilice la siguiente escala para evaluar cada aspecto del desempeño docente:</p>
+                    <div class="rating-scale" style="display: flex; justify-content: space-between; margin-top: 10px; font-weight: bold;">
+                        <div style="color: #27ae60;">5 = Excelente</div>
+                        <div style="color: #2ecc71;">4 = Muy Bueno</div>
+                        <div style="color: #f39c12;">3 = Bueno</div>
+                        <div style="color: #e67e22;">2 = Regular</div>
+                        <div style="color: #e74c3c;">1 = Deficiente</div>
+                    </div>
+                    <p style="margin-top: 10px; font-weight: bold;">Donde 5 es la calificación más alta y 1 es la más baja.</p>
+                </div>
+
+                <div class="duplicate-warning" id="duplicateWarning">
+                    ⚠️ Ya has evaluado a este catedrático en esta asignatura. Solo se permite una evaluación por estudiante por materia.
+                </div>
+
+                <div id="questionsContainer"></div>
+
+                <button type="submit" class="btn-submit" id="submitButton">
+                    💾 Guardar Evaluación
+                </button>
+            </form>
+        </div>
+
+        <!-- ========== PESTAÑA DASHBOARD ========== -->
+        <div id="dashboard" class="tab-content">
+            <div class="admin-info">
+                🔐 Área administrativa - Solo personal autorizado
+            </div>
+
+            <div class="sync-status" id="syncStatus">
+                💾 Sistema conectado a almacenamiento en la nube
+            </div>
+
+            <!-- Controles de filtrado -->
+            <div class="data-controls">
+                <h4>🔍 Filtros de Estadísticas</h4>
+                <div class="data-filters">
+                    <div class="filter-group">
+                        <label for="dashboardProfessorFilter">Filtrar por catedrático:</label>
+                        <select id="dashboardProfessorFilter" onchange="updateDashboard()">
+                            <option value="all">Todos los catedráticos</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="dashboardSubjectFilter">Filtrar por asignatura:</label>
+                        <select id="dashboardSubjectFilter" onchange="updateDashboard()">
+                            <option value="all">Todas las asignaturas</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="dashboardSemesterFilter">Filtrar por semestre:</label>
+                        <select id="dashboardSemesterFilter" onchange="updateDashboard()">
+                            <option value="all">Todos los semestres</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="export-buttons">
+                <button class="export-btn" onclick="exportToExcel()">📊 Exportar a Excel</button>
+                <button class="export-btn warning" onclick="forceSyncGitHub()">🔄 Sincronizar Datos</button>
+                <button class="export-btn" onclick="logout()">🚪 Cerrar Sesión</button>
+            </div>
+
+            <div class="highlight-cards">
+                <div class="highlight-card best" id="bestProfessorCard">
+                    <div class="highlight-title">🏆 MEJOR EVALUADO</div>
+                    <div class="highlight-professor" id="bestProfessorName">Cargando...</div>
+                    <div class="highlight-rating" id="bestProfessorRating">0.0</div>
+                    <div class="highlight-stats">
+                        <span id="bestProfessorEvaluations">0</span> evaluaciones<br>
+                        <span id="bestProfessorRecommendation">0%</span> de recomendación
+                    </div>
+                </div>
+
+                <div class="highlight-card worst" id="worstProfessorCard">
+                    <div class="highlight-title">📉 MENOR EVALUACIÓN</div>
+                    <div class="highlight-professor" id="worstProfessorName">Cargando...</div>
+                    <div class="highlight-rating" id="worstProfessorRating">0.0</div>
+                    <div class="highlight-stats">
+                        <span id="worstProfessorEvaluations">0</span> evaluaciones<br>
+                        <span id="worstProfessorRecommendation">0%</span> de recomendación
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalEvaluations">0</div>
+                    <div class="stat-label">Total Evaluaciones</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="averageRating">0.0</div>
+                    <div class="stat-label">Calificación Promedio</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="recommendationRate">0%</div>
+                    <div class="stat-label">Tasa de Recomendación</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalProfessors">0</div>
+                    <div class="stat-label">Catedráticos Evaluados</div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3>Distribución de Calificaciones</h3>
+                <canvas id="ratingChart" width="400" height="200"></canvas>
+            </div>
+
+            <div class="professor-list">
+                <h3>Ranking de Catedráticos</h3>
+                <div id="professorRanking"></div>
+            </div>
+        </div>
+
+        <!-- ========== PESTAÑA DATOS ========== -->
+        <div id="data" class="tab-content">
+            <div class="admin-info">
+                🔐 Área administrativa - Solo personal autorizado
+            </div>
+
+            <h3>📊 Datos de Evaluaciones</h3>
+            
+            <div class="sync-status" id="dataSyncStatus">
+                💾 Datos almacenados en la nube
+            </div>
+
+            <!-- Controles de filtrado -->
+            <div class="data-controls">
+                <h4>🔍 Filtros de Visualización</h4>
+                <div class="data-filters">
+                    <div class="filter-group">
+                        <label for="professorFilter">Filtrar por catedrático:</label>
+                        <select id="professorFilter" onchange="filterRawData()">
+                            <option value="all">Todos los catedráticos</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="subjectFilter">Filtrar por asignatura:</label>
+                        <select id="subjectFilter" onchange="filterRawData()">
+                            <option value="all">Todas las asignaturas</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="semesterFilter">Filtrar por semestre:</label>
+                        <select id="semesterFilter" onchange="filterRawData()">
+                            <option value="all">Todos los semestres</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botones de acción -->
+            <div class="data-buttons-grid">
+                <div class="data-btn-group">
+                    <div class="data-btn-row">
+                        <button class="data-btn success" onclick="exportToExcel()">📊 Exportar Excel</button>
+                        <button class="data-btn" onclick="clearLocalData()">🗑️ Limpiar Local</button>
+                    </div>
+                    <div class="data-btn-row">
+                        <button class="data-btn warning" onclick="forceSyncGitHub()">🔄 Sincronizar</button>
+                        <button class="data-btn" onclick="showFormattedData()">👁️ Ver Datos</button>
+                    </div>
+                    <div class="data-btn-row">
+                        <button class="data-btn" onclick="downloadFromGitHub()">⬇️ Descargar Cloud</button>
+                        <button class="data-btn" onclick="logout()">🚪 Cerrar Sesión</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contenedor de datos -->
+            <div class="raw-data-container">
+                <div class="raw-data-header">
+                    <h4 style="margin: 0; color: white;">📄 Evaluaciones Detalladas</h4>
+                    <span id="evaluationCount" style="color: #ecf0f1;">0 evaluaciones</span>
+                </div>
+                <div class="raw-data-content" id="rawData">
+                    <div class="no-data">No hay evaluaciones para mostrar.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== MODAL LOGIN ========== -->
+        <div id="loginModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+            <div style="max-width: 400px; margin: 50px auto; padding: 30px; background: white; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.1);">
+                <h2 style="text-align: center; margin-bottom: 20px; color: #2c3e50;">🔐 Acceso Administrativo</h2>
+                <div class="form-group">
+                    <label for="adminPassword">Contraseña:</label>
+                    <input type="password" id="adminPassword" placeholder="Ingrese la contraseña de administrador">
+                </div>
+                <button class="btn-submit" onclick="authenticate()" style="width: 100%;">Acceder</button>
+                <div style="color: #e74c3c; text-align: center; margin-top: 10px; display: none;" id="loginError">Contraseña incorrecta</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========== CONFIGURACIÓN GITHUB (REEMPLAZA ESTOS VALORES) ==========
+        // ⚠️ IMPORTANTE: REEMPLAZA ESTOS VALORES CON TU CONFIGURACIÓN REAL
+        const GITHUB_CONFIG = {
+            API_URL: 'https://api.github.com',
+            FILE_PATH: 'evaluaciones.json',
+            EXCEL_PATH: 'evaluaciones.xlsx',
+            TOKEN: 'ghp_TU_TOKEN_AQUI',  // ← REEMPLAZA con tu token de GitHub
+            REPO: 'TU_USUARIO/TU_REPOSITORIO'  // ← REEMPLAZA con tu usuario/repo
+        };
+
+        // ========== CONFIGURACIÓN DEL SISTEMA ==========
+        const SECURITY_CONFIG = {
+            ADMIN_PASSWORD: 'admin123',
+            SESSION_TIMEOUT: 60 * 60 * 1000, // 1 hora
+            STORAGE_KEYS: {
+                EVALUATIONS: 'evaluaciones_docentes',
+                ADMIN_AUTH: 'admin_autenticado',
+                PASSWORD_HASH: 'admin_password_hash'
+            }
+        };
+
+        // ========== VARIABLES GLOBALES ==========
+        let evaluaciones = JSON.parse(localStorage.getItem(SECURITY_CONFIG.STORAGE_KEYS.EVALUATIONS)) || [];
+        let isAuthenticated = false;
+        let ratingChart = null;
+
+        // ========== ESTRUCTURA DE DIMENSIONES ==========
+        const dimensions = [
+            {
+                id: 'A',
+                title: "A. CUMPLIMIENTO DEL PLAN DE ESTUDIOS",
+                questions: [
+                    { id: 'A1', text: "Presentó y explicó el programa de la asignatura al inicio del curso." },
+                    { id: 'A2', text: "Cubre todos los temas establecidos en el plan de estudios." },
+                    { id: 'A3', text: "Sigue la secuencia temática planificada en el programa." },
+                    { id: 'A4', text: "Cumple con los objetivos de aprendizaje planteados en el programa." },
+                    { id: 'A5', text: "Realiza las actividades prácticas establecidas en el plan de estudios." }
+                ]
+            },
+            {
+                id: 'B',
+                title: "B. GESTIÓN DEL TIEMPO DE CLASE",
+                questions: [
+                    { id: 'B1', text: "Distribuye adecuadamente el tiempo entre teoría y práctica." },
+                    { id: 'B2', text: "Optimiza el tiempo de clase sin extenderse en temas irrelevantes." },
+                    { id: 'B3', text: "Dedica tiempo suficiente para aclarar dudas y preguntas." },
+                    { id: 'B4', text: "Cumple puntualmente con el horario de inicio y fin de clase." }
+                ]
+            },
+            {
+                id: 'C',
+                title: "C. METODOLOGÍA DOCENTE Y USO DE TIC",
+                questions: [
+                    { id: 'C1', text: "Utiliza metodologías de enseñanza innovadoras y participativas." },
+                    { id: 'C2', text: "Integra eficazmente recursos TIC en el proceso de aprendizaje." },
+                    { id: 'C3', text: "Las presentaciones (PPT, Prezi, etc.) son claras y complementan la explicación." },
+                    { id: 'C4', text: "Utiliza plataformas virtuales (Moodle, Classroom, etc.) de manera efectiva." },
+                    { id: 'C5', text: "Fomenta el aprendizaje colaborativo mediante herramientas digitales." }
+                ]
+            },
+            {
+                id: 'D',
+                title: "D. DOMINIO Y ACTUALIZACIÓN ACADÉMICA",
+                questions: [
+                    { id: 'D1', text: "Domina los contenidos de la asignatura." },
+                    { id: 'D2', text: "Relaciona los temas con aplicaciones prácticas o ejemplos actuales." }
+                ]
+            },
+            {
+                id: 'E',
+                title: "E. CLARIDAD EN LA COMUNICACIÓN",
+                questions: [
+                    { id: 'E1', text: "Explica los temas con claridad y secuencia lógica." },
+                    { id: 'E2', text: "Se expresa de manera comprensible y organizada." }
+                ]
+            },
+            {
+                id: 'F',
+                title: "F. EVALUACIÓN Y RETROALIMENTACIÓN",
+                questions: [
+                    { id: 'F1', text: "Los criterios de evaluación son claros y transparentes." },
+                    { id: 'F2', text: "Las evaluaciones corresponden a los temas vistos en clase." },
+                    { id: 'F3', text: "Proporciona retroalimentación útil sobre trabajos y exámenes." },
+                    { id: 'F4', text: "El docente realiza la evaluación de la unidad con base a la carpeta de evidencias que establece el plan de estudios" }
+                ]
+            },
+            {
+                id: 'G',
+                title: "G. ACTITUD Y DISPOSICIÓN DOCENTE",
+                questions: [
+                    { id: 'G1', text: "Muestra respeto y apertura hacia los estudiantes." },
+                    { id: 'G2', text: "Está disponible para tutorías o consultas fuera del aula (presenciales o virtuales)." }
+                ]
+            },
+            {
+                id: 'H',
+                title: "H. PRESENTACIÓN PERSONAL Y PROFESIONALISMO",
+                questions: [
+                    { id: 'H1', text: "Mantiene una apariencia personal adecuada al ámbito académico." },
+                    { id: 'H2', text: "Su vestimenta es apropiada para el entorno universitario." },
+                    { id: 'H3', text: "Demuestra pulcritud y cuidado en su presentación personal." },
+                    { id: 'H4', text: "Su postura y lenguaje corporal transmiten profesionalismo." },
+                    { id: 'H5', text: "Mantiene una actitud seria y formal durante las clases." }
+                ]
+            }
+        ];
+
+        const openQuestions = [
+            { id: 'O1', text: "¿El catedrático cumple con el plan de estudios? Mencione algún tema que no se haya visto o que se haya profundizado menos de lo esperado:" },
+            { id: 'O2', text: "¿Qué recursos TIC o herramientas digitales utilizadas por el catedrático consideras más útiles para tu aprendizaje?" },
+            { id: 'O3', text: "¿El catedrático aprovecha eficientemente el tiempo de clase? ¿Por qué?" },
+            { id: 'O4', text: "¿La presentación personal del catedrático influye positivamente en su imagen como docente? ¿Por qué?" },
+            { id: 'O5', text: "Aspectos más valorados del catedrático:" },
+            { id: 'O6', text: "Sugerencias de mejora general:" }
+        ];
+
+        // ========== INICIALIZACIÓN DEL SISTEMA ==========
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeSecurity();
+            generateQuestions();
+            document.getElementById('evaluationForm').addEventListener('submit', handleSubmit);
+            showTab('evaluation');
+            
+            // Intentar cargar datos de GitHub automáticamente
+            setTimeout(async () => {
+                await downloadFromGitHub();
+                console.log('Datos cargados de GitHub automáticamente');
+            }, 1000);
+            
+            // Event listeners
+            document.getElementById('loginModal').addEventListener('click', function(e) {
+                if (e.target === this) hideLoginModal();
+            });
+            
+            document.getElementById('adminPassword').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') authenticate();
+            });
+            
+            document.getElementById('studentName').addEventListener('input', checkDuplicateEvaluation);
+            document.getElementById('studentName').addEventListener('change', checkDuplicateEvaluation);
+        });
+
+        // ========== FUNCIONES PRINCIPALES ==========
+        function generateQuestions() {
+            const container = document.getElementById('questionsContainer');
+            container.innerHTML = '';
+
+            let questionCount = 0;
+
+            // Dimensiones con preguntas de rating
+            dimensions.forEach(dimension => {
+                const dimensionDiv = document.createElement('div');
+                dimensionDiv.className = 'dimension';
+                
+                const header = document.createElement('div');
+                header.className = 'dimension-header';
+                header.innerHTML = `<h3>${dimension.title}</h3>`;
+                dimensionDiv.appendChild(header);
+
+                dimension.questions.forEach((questionObj) => {
+                    questionCount++;
+                    const questionDiv = document.createElement('div');
+                    questionDiv.className = 'question';
+                    
+                    questionDiv.innerHTML = `
+                        <p><strong>${questionCount}.</strong> ${questionObj.text}</p>
+                        <div class="rating-options">
+                            ${[5,4,3,2,1].map(score => `
+                                <div class="rating-option">
+                                    <input type="radio" id="${questionObj.id}s${score}" name="${questionObj.id}" value="${score}" required>
+                                    <label for="${questionObj.id}s${score}">${score}</label>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                    dimensionDiv.appendChild(questionDiv);
+                });
+
+                container.appendChild(dimensionDiv);
+            });
+
+            // Preguntas abiertas
+            const openQuestionsDiv = document.createElement('div');
+            openQuestionsDiv.innerHTML = '<h2>IV. PREGUNTAS ABIERTAS</h2>';
+            
+            openQuestions.forEach((questionObj) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'question';
+                questionDiv.innerHTML = `
+                    <p><strong>${questionObj.text}</strong></p>
+                    <textarea id="${questionObj.id}" name="${questionObj.id}" rows="3"></textarea>
+                `;
+                openQuestionsDiv.appendChild(questionDiv);
+            });
+
+            // Recomendación
+            const recommendationDiv = document.createElement('div');
+            recommendationDiv.className = 'recommendation';
+            recommendationDiv.innerHTML = `
+                <h2>V. RECOMENDACIÓN</h2>
+                <p>¿Recomendaría este catedrático a otros estudiantes?</p>
+                <div class="rating-options">
+                    <div class="rating-option">
+                        <input type="radio" id="recommendYes" name="recommendation" value="si" required>
+                        <label for="recommendYes">Sí</label>
+                    </div>
+                    <div class="rating-option">
+                        <input type="radio" id="recommendNo" name="recommendation" value="no" required>
+                        <label for="recommendNo">No</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="recommendWhy"><strong>Por qué:</strong></label>
+                    <textarea id="recommendWhy" name="recommendWhy" rows="3" required></textarea>
+                </div>
+            `;
+
+            container.appendChild(openQuestionsDiv);
+            container.appendChild(recommendationDiv);
+        }
+
+        async function handleSubmit(event) {
+            event.preventDefault();
+            
+            // Validar que todas las preguntas estén respondidas
+            let allAnswered = true;
+            dimensions.forEach(dimension => {
+                dimension.questions.forEach(question => {
+                    const answered = document.querySelector(`input[name="${question.id}"]:checked`);
+                    if (!answered) allAnswered = false;
+                });
+            });
+            
+            if (!allAnswered) {
+                alert('Por favor responda todas las preguntas de calificación');
+                return;
+            }
+            
+            const evaluation = {
+                id: Date.now() + Math.random().toString(36).substr(2, 9),
+                timestamp: new Date().toISOString(),
+                studentName: document.getElementById('studentName').value.trim(),
+                semester: document.getElementById('semester').value,
+                subject: document.getElementById('subject').value,
+                professor: document.getElementById('professor').value,
+                career: document.getElementById('career').value,
+                average: calculateAverageFromForm(),
+                recommendation: {
+                    wouldRecommend: document.querySelector('input[name="recommendation"]:checked').value,
+                    reason: document.getElementById('recommendWhy').value
+                },
+                responses: {}
+            };
+
+            // Guardar respuestas abiertas
+            openQuestions.forEach(question => {
+                evaluation.responses[question.id] = document.getElementById(question.id).value;
+            });
+
+            // 1. Guardar localmente
+            evaluaciones.push(evaluation);
+            saveData();
+
+            // 2. Intentar guardar en GitHub (en segundo plano)
+            try {
+                const success = await uploadSingleEvaluation(evaluation);
+                if (success) {
+                    alert('✅ Evaluación guardada localmente y en la nube');
+                } else {
+                    alert('✅ Evaluación guardada localmente (error conectando con la nube)');
+                }
+            } catch (error) {
+                alert('✅ Evaluación guardada localmente');
+            }
+
+            // Limpiar formulario
+            event.target.reset();
+            checkDuplicateEvaluation();
+        }
+
+        function calculateAverageFromForm() {
+            let total = 0;
+            let count = 0;
+            
+            dimensions.forEach(dimension => {
+                dimension.questions.forEach(question => {
+                    const input = document.querySelector(`input[name="${question.id}"]:checked`);
+                    if (input) {
+                        total += parseInt(input.value);
+                        count++;
+                    }
+                });
+            });
+            
+            return count > 0 ? parseFloat((total / count).toFixed(2)) : 0;
+        }
+
+        function checkDuplicateEvaluation() {
+            const studentName = document.getElementById('studentName').value.trim();
+            const subject = document.getElementById('subject').value;
+            const professor = document.getElementById('professor').value;
+            const submitButton = document.getElementById('submitButton');
+            const warningDiv = document.getElementById('duplicateWarning');
+            
+            if (!studentName || !subject || !professor) {
+                submitButton.disabled = false;
+                warningDiv.style.display = 'none';
+                return;
+            }
+            
+            const isDuplicate = evaluaciones.some(eval => 
+                eval.studentName && eval.studentName.toLowerCase() === studentName.toLowerCase() &&
+                eval.subject === subject &&
+                eval.professor === professor
+            );
+            
+            if (isDuplicate) {
+                submitButton.disabled = true;
+                warningDiv.style.display = 'block';
+            } else {
+                submitButton.disabled = false;
+                warningDiv.style.display = 'none';
+            }
+        }
+
+        // ========== FUNCIONES DE SEGURIDAD ==========
+        function initializeSecurity() {
+            checkAuthentication();
+            lockAdminTabs();
+            
+            if (!localStorage.getItem(SECURITY_CONFIG.STORAGE_KEYS.PASSWORD_HASH)) {
+                localStorage.setItem(SECURITY_CONFIG.STORAGE_KEYS.PASSWORD_HASH, 
+                                   btoa(SECURITY_CONFIG.ADMIN_PASSWORD));
+            }
+        }
+
+        function checkAuthentication() {
+            const authData = JSON.parse(localStorage.getItem(SECURITY_CONFIG.STORAGE_KEYS.ADMIN_AUTH)) || {};
+            
+            if (authData.authenticated && authData.expires > Date.now()) {
+                isAuthenticated = true;
+                unlockAdminTabs();
+                return true;
+            } else {
+                localStorage.removeItem(SECURITY_CONFIG.STORAGE_KEYS.ADMIN_AUTH);
+                isAuthenticated = false;
+                lockAdminTabs();
+                return false;
+            }
+        }
+
+        function lockAdminTabs() {
+            const dashboardTab = document.getElementById('dashboardTab');
+            const dataTab = document.getElementById('dataTab');
+            
+            if (dashboardTab && dataTab) {
+                dashboardTab.classList.add('locked');
+                dataTab.classList.add('locked');
+                dashboardTab.classList.remove('active');
+                dataTab.classList.remove('active');
+            }
+            
+            if (document.getElementById('dashboard').classList.contains('active') || 
+                document.getElementById('data').classList.contains('active')) {
+                showTab('evaluation');
+            }
+        }
+
+        function unlockAdminTabs() {
+            const dashboardTab = document.getElementById('dashboardTab');
+            const dataTab = document.getElementById('dataTab');
+            
+            if (dashboardTab && dataTab) {
+                dashboardTab.classList.remove('locked');
+                dataTab.classList.remove('locked');
+            }
+        }
+
+        function requestDashboardAccess(event) {
+            if (!event) return;
+            
+            const targetTab = event.target.id === 'dashboardTab' ? 'dashboard' : 'data';
+            
+            if (!checkAuthentication()) {
+                showLoginModal(targetTab);
+            } else {
+                showTab(targetTab);
+            }
+        }
+
+        function showLoginModal(targetTab = 'dashboard') {
+            document.getElementById('loginModal').setAttribute('data-target-tab', targetTab);
+            document.getElementById('loginModal').style.display = 'block';
+            document.getElementById('adminPassword').focus();
+            document.getElementById('loginError').style.display = 'none';
+        }
+
+        function hideLoginModal() {
+            document.getElementById('loginModal').style.display = 'none';
+            document.getElementById('adminPassword').value = '';
+            document.getElementById('loginModal').removeAttribute('data-target-tab');
+        }
+
+        function authenticate() {
+            const password = document.getElementById('adminPassword').value;
+            const storedPassword = localStorage.getItem(SECURITY_CONFIG.STORAGE_KEYS.PASSWORD_HASH);
+
+            if (!password) {
+                document.getElementById('loginError').textContent = 'Por favor ingrese la contraseña';
+                document.getElementById('loginError').style.display = 'block';
+                return;
+            }
+
+            if (btoa(password) === storedPassword) {
+                const authData = {
+                    authenticated: true,
+                    expires: Date.now() + SECURITY_CONFIG.SESSION_TIMEOUT
+                };
+                localStorage.setItem(SECURITY_CONFIG.STORAGE_KEYS.ADMIN_AUTH, JSON.stringify(authData));
+                
+                isAuthenticated = true;
+                unlockAdminTabs();
+                hideLoginModal();
+                
+                const targetTab = document.getElementById('loginModal').getAttribute('data-target-tab') || 'dashboard';
+                showTab(targetTab);
+                
+                // Descargar datos de GitHub al acceder
+                downloadFromGitHub().then(() => {
+                    updateDashboard();
+                });
+                
+            } else {
+                document.getElementById('loginError').textContent = 'Contraseña incorrecta';
+                document.getElementById('loginError').style.display = 'block';
+                document.getElementById('adminPassword').value = '';
+                document.getElementById('adminPassword').focus();
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem(SECURITY_CONFIG.STORAGE_KEYS.ADMIN_AUTH);
+            isAuthenticated = false;
+            lockAdminTabs();
+            showTab('evaluation');
+            alert('Sesión cerrada correctamente');
+        }
+
+        // ========== FUNCIONES DE GESTIÓN DE DATOS ==========
+        function saveData() {
+            localStorage.setItem(SECURITY_CONFIG.STORAGE_KEYS.EVALUATIONS, JSON.stringify(evaluaciones));
+            if (isAuthenticated) {
+                updateDashboard();
+            }
+        }
+
+        function showTab(tabName) {
+            if ((tabName === 'dashboard' || tabName === 'data') && !checkAuthentication()) {
+                showLoginModal(tabName);
+                return;
+            }
+
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            document.getElementById(tabName).classList.add('active');
+            
+            document.querySelectorAll('.nav-tab').forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            if (tabName === 'evaluation') {
+                document.querySelector('.nav-tab:first-child').classList.add('active');
+            } else if (tabName === 'dashboard') {
+                document.getElementById('dashboardTab').classList.add('active');
+                updateDashboard();
+            } else if (tabName === 'data') {
+                document.getElementById('dataTab').classList.add('active');
+                showFormattedData();
+            }
+        }
+
+        // ========== FUNCIONES GITHUB (OCULTAS AL USUARIO) ==========
+        async function uploadSingleEvaluation(evaluation) {
+            try {
+                // Primero obtener datos actuales de GitHub
+                const response = await fetch(
+                    `${GITHUB_CONFIG.API_URL}/repos/${GITHUB_CONFIG.REPO}/contents/${GITHUB_CONFIG.FILE_PATH}`,
+                    {
+                        headers: {
+                            'Authorization': `token ${GITHUB_CONFIG.TOKEN}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    }
+                );
+                
+                let currentContent = { evaluations: [], metadata: {} };
+                let sha = '';
+                
+                if (response.ok) {
+                    const fileInfo = await response.json();
+                    sha = fileInfo.sha;
+                    currentContent = JSON.parse(atob(fileInfo.content));
+                }
+                
+                // Agregar nueva evaluación (evitar duplicados)
+                const exists = currentContent.evaluations.some(e => e.id === evaluation.id);
+                if (!exists) {
+                    currentContent.evaluations.push(evaluation);
+                    currentContent.metadata = {
+                        ...currentContent.metadata,
+                        lastUpdate: new Date().toISOString(),
+                        total: currentContent.evaluations.length
+                    };
+                    
+                    // Subir a GitHub
+                    const updateResponse = await fetch(
+                        `${GITHUB_CONFIG.API_URL}/repos/${GITHUB_CONFIG.REPO}/contents/${GITHUB_CONFIG.FILE_PATH}`,
+                        {
+                            method: 'PUT',
+                            headers: {
+                                'Authorization': `token ${GITHUB_CONFIG.TOKEN}`,
+                                'Accept': 'application/vnd.github.v3+json',
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                message: `Evaluación de ${evaluation.studentName} - ${evaluation.professor}`,
+                                content: btoa(JSON.stringify(currentContent, null, 2)),
+                                sha: sha
+                            })
+                        }
+                    );
+                    
+                    return updateResponse.ok;
+                }
+                return true; // Ya existe, no es error
+                
+            } catch (error) {
+                console.error('Error subiendo evaluación a GitHub:', error);
+                return false;
+            }
+        }
+
+        async function uploadToGitHub() {
+            if (evaluaciones.length === 0) {
+                return false;
+            }
+            
+            try {
+                const data = {
+                    evaluations: evaluaciones,
+                    metadata: {
+                        lastSync: new Date().toISOString(),
+                        total: evaluaciones.length,
+                        system: 'Evaluación Docente'
+                    }
+                };
+                
+                const contentBase64 = btoa(JSON.stringify(data, null, 2));
+                
+                // Obtener SHA si el archivo existe
+                let sha = '';
+                try {
+                    const getResponse = await fetch(
+                        `${GITHUB_CONFIG.API_URL}/repos/${GITHUB_CONFIG.REPO}/contents/${GITHUB_CONFIG.FILE_PATH}`,
+                        {
+                            headers: {
+                                'Authorization': `token ${GITHUB_CONFIG.TOKEN}`,
+                                'Accept': 'application/vnd.github.v3+json'
+                            }
+                        }
+                    );
+                    
+                    if (getResponse.ok) {
+                        const fileInfo = await getResponse.json();
+                        sha = fileInfo.sha;
+                    }
+                } catch (e) {
+                    // Archivo no existe
+                }
+                
+                // Subir archivo
+                const response = await fetch(
+                    `${GITHUB_CONFIG.API_URL}/repos/${GITHUB_CONFIG.REPO}/contents/${GITHUB_CONFIG.FILE_PATH}`,
+                    {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `token ${GITHUB_CONFIG.TOKEN}`,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            message: `Sincronización completa - ${new Date().toLocaleString('es-MX')}`,
+                            content: contentBase64,
+                            sha: sha || undefined
+                        })
+                    }
+                );
+                
+                if (response.ok) {
+                    updateSyncStatus('✅ Datos sincronizados con la nube', 'success');
+                    return true;
+                }
+                return false;
+                
+            } catch (error) {
+                console.error('Error en uploadToGitHub:', error);
+                updateSyncStatus('❌ Error sincronizando', 'error');
+                return false;
+            }
+        }
+
+        async function downloadFromGitHub() {
+            try {
+                const response = await fetch(
+                    `${GITHUB_CONFIG.API_URL}/repos/${GITHUB_CONFIG.REPO}/contents/${GITHUB_CONFIG.FILE_PATH}`,
+                    {
+                        headers: {
+                            'Authorization': `token ${GITHUB_CONFIG.TOKEN}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    }
+                );
+                
+                if (response.ok) {
+                    const fileInfo = await response.json();
+                    const content = JSON.parse(atob(fileInfo.content));
+                    
+                    if (content.evaluations && Array.isArray(content.evaluations)) {
+                        // Combinar sin duplicados
+                        const existingIds = new Set(evaluaciones.map(e => e.id));
+                        const newEvaluations = content.evaluations.filter(e => !existingIds.has(e.id));
+                        
+                        if (newEvaluations.length > 0) {
+                            evaluaciones.push(...newEvaluations);
+                            saveData();
+                            updateSyncStatus(`✅ ${newEvaluations.length} evaluaciones descargadas`, 'success');
+                            return true;
+                        }
+                    }
+                }
+                return false;
+                
+            } catch (error) {
+                console.error('Error en downloadFromGitHub:', error);
+                return false;
+            }
+        }
+
+        async function forceSyncGitHub() {
+            updateSyncStatus('🔄 Sincronizando con la nube...', 'syncing');
+            
+            // Primero descargar
+            await downloadFromGitHub();
+            
+            // Luego subir
+            await uploadToGitHub();
+            
+            // Actualizar dashboard
+            updateDashboard();
+            showFormattedData();
+        }
+
+        function updateSyncStatus(message, type = '') {
+            const elements = ['syncStatus', 'dataSyncStatus'];
+            elements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.textContent = message;
+                    element.className = 'sync-status';
+                    if (type) element.classList.add(type);
+                }
+            });
+        }
+
+        // ========== FUNCIONES DEL DASHBOARD ==========
+        function updateDashboard() {
+            // Obtener filtros
+            const professorFilter = document.getElementById('dashboardProfessorFilter');
+            const subjectFilter = document.getElementById('dashboardSubjectFilter');
+            const semesterFilter = document.getElementById('dashboardSemesterFilter');
+            
+            // Filtrar evaluaciones
+            let filteredEvaluations = evaluaciones;
+            
+            if (professorFilter && professorFilter.value !== 'all') {
+                filteredEvaluations = filteredEvaluations.filter(e => e.professor === professorFilter.value);
+            }
+            
+            if (subjectFilter && subjectFilter.value !== 'all') {
+                filteredEvaluations = filteredEvaluations.filter(e => e.subject === subjectFilter.value);
+            }
+            
+            if (semesterFilter && semesterFilter.value !== 'all') {
+                filteredEvaluations = filteredEvaluations.filter(e => e.semester === semesterFilter.value);
+            }
+            
+            // Actualizar estadísticas
+            updateStats(filteredEvaluations);
+            updateProfessorHighlights(filteredEvaluations);
+            updateRatingChart(filteredEvaluations);
+            updateProfessorRanking(filteredEvaluations);
+            
+            // Actualizar filtros
+            updateFilters();
+        }
+
+        function updateStats(evaluations) {
+            const total = evaluations.length;
+            document.getElementById('totalEvaluations').textContent = total;
+            
+            if (total === 0) {
+                document.getElementById('averageRating').textContent = '0.0';
+                document.getElementById('recommendationRate').textContent = '0%';
+                document.getElementById('totalProfessors').textContent = '0';
+                return;
+            }
+            
+            const average = evaluations.reduce((sum, eval) => sum + eval.average, 0) / total;
+            document.getElementById('averageRating').textContent = average.toFixed(1);
+            
+            const recommendations = evaluations.filter(e => e.recommendation.wouldRecommend === 'si').length;
+            const rate = (recommendations / total) * 100;
+            document.getElementById('recommendationRate').textContent = rate.toFixed(1) + '%';
+            
+            const professors = new Set(evaluations.map(e => e.professor)).size;
+            document.getElementById('totalProfessors').textContent = professors;
+        }
+
+        function updateProfessorHighlights(evaluations) {
+            if (evaluations.length === 0) {
+                document.getElementById('bestProfessorName').textContent = 'Sin datos';
+                document.getElementById('bestProfessorRating').textContent = '0.0';
+                document.getElementById('bestProfessorEvaluations').textContent = '0';
+                document.getElementById('bestProfessorRecommendation').textContent = '0%';
+                
+                document.getElementById('worstProfessorName').textContent = 'Sin datos';
+                document.getElementById('worstProfessorRating').textContent = '0.0';
+                document.getElementById('worstProfessorEvaluations').textContent = '0';
+                document.getElementById('worstProfessorRecommendation').textContent = '0%';
+                return;
+            }
+            
+            const stats = calculateProfessorStats(evaluations);
+            
+            if (stats.length > 0) {
+                const best = stats[0];
+                document.getElementById('bestProfessorName').textContent = best.professor;
+                document.getElementById('bestProfessorRating').textContent = best.average.toFixed(1);
+                document.getElementById('bestProfessorEvaluations').textContent = best.count;
+                document.getElementById('bestProfessorRecommendation').textContent = best.recommendationRate + '%';
+                
+                const worst = stats[stats.length - 1];
+                document.getElementById('worstProfessorName').textContent = worst.professor;
+                document.getElementById('worstProfessorRating').textContent = worst.average.toFixed(1);
+                document.getElementById('worstProfessorEvaluations').textContent = worst.count;
+                document.getElementById('worstProfessorRecommendation').textContent = worst.recommendationRate + '%';
+            }
+        }
+
+        function calculateProfessorStats(evaluations) {
+            const stats = {};
+            
+            evaluations.forEach(eval => {
+                if (!stats[eval.professor]) {
+                    stats[eval.professor] = {
+                        total: 0,
+                        count: 0,
+                        recommendations: 0
+                    };
+                }
+                stats[eval.professor].total += eval.average;
+                stats[eval.professor].count++;
+                if (eval.recommendation.wouldRecommend === 'si') {
+                    stats[eval.professor].recommendations++;
+                }
+            });
+            
+            return Object.entries(stats).map(([professor, data]) => ({
+                professor,
+                average: data.total / data.count,
+                count: data.count,
+                recommendationRate: (data.recommendations / data.count) * 100
+            })).sort((a, b) => b.average - a.average);
+        }
+
+        function updateRatingChart(evaluations) {
+            const canvas = document.getElementById('ratingChart');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            
+            if (ratingChart) {
+                ratingChart.destroy();
+            }
+            
+            // Contar calificaciones por rango
+            const ranges = {
+                'Excelente (4.5-5)': 0,
+                'Muy Bueno (4-4.49)': 0,
+                'Bueno (3-3.99)': 0,
+                'Regular (2-2.99)': 0,
+                'Deficiente (1-1.99)': 0
+            };
+            
+            evaluations.forEach(eval => {
+                if (eval.average >= 4.5) ranges['Excelente (4.5-5)']++;
+                else if (eval.average >= 4) ranges['Muy Bueno (4-4.49)']++;
+                else if (eval.average >= 3) ranges['Bueno (3-3.99)']++;
+                else if (eval.average >= 2) ranges['Regular (2-2.99)']++;
+                else ranges['Deficiente (1-1.99)']++;
+            });
+            
+            ratingChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(ranges),
+                    datasets: [{
+                        label: 'Cantidad de Evaluaciones',
+                        data: Object.values(ranges),
+                        backgroundColor: [
+                            'rgba(39, 174, 96, 0.7)',
+                            'rgba(46, 204, 113, 0.7)',
+                            'rgba(243, 156, 18, 0.7)',
+                            'rgba(230, 126, 34, 0.7)',
+                            'rgba(231, 76, 60, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgb(39, 174, 96)',
+                            'rgb(46, 204, 113)',
+                            'rgb(243, 156, 18)',
+                            'rgb(230, 126, 34)',
+                            'rgb(231, 76, 60)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateProfessorRanking(evaluations) {
+            const container = document.getElementById('professorRanking');
+            if (!container) return;
+            
+            if (evaluations.length === 0) {
+                container.innerHTML = '<div class="no-data">No hay evaluaciones para mostrar</div>';
+                return;
+            }
+            
+            const stats = calculateProfessorStats(evaluations);
+            
+            let html = '';
+            stats.forEach((prof, index) => {
+                const color = prof.average >= 4.5 ? '#27ae60' : 
+                             prof.average >= 4 ? '#2ecc71' : 
+                             prof.average >= 3 ? '#f39c12' : 
+                             prof.average >= 2 ? '#e67e22' : '#e74c3c';
+                
+                html += `
+                    <div class="professor-item" style="padding: 15px; border-bottom: 1px solid #ecf0f1; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>${index + 1}. ${prof.professor}</strong><br>
+                            <small>${prof.count} evaluación(es)</small>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 1.2em; font-weight: bold; color: ${color};">
+                                ${prof.average.toFixed(1)}
+                            </div>
+                            <small>${prof.recommendationRate.toFixed(1)}% recomendación</small>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function updateFilters() {
+            // Actualizar filtros de profesor
+            const professors = [...new Set(evaluaciones.map(e => e.professor))].sort();
+            const professorFilters = document.querySelectorAll('#dashboardProfessorFilter, #professorFilter');
+            
+            professorFilters.forEach(filter => {
+                const currentValue = filter.value;
+                filter.innerHTML = '<option value="all">Todos los catedráticos</option>';
+                professors.forEach(prof => {
+                    const option = document.createElement('option');
+                    option.value = prof;
+                    option.textContent = prof;
+                    if (prof === currentValue) option.selected = true;
+                    filter.appendChild(option);
+                });
+            });
+            
+            // Actualizar filtros de asignatura
+            const subjects = [...new Set(evaluaciones.map(e => e.subject))].sort();
+            const subjectFilters = document.querySelectorAll('#dashboardSubjectFilter, #subjectFilter');
+            
+            subjectFilters.forEach(filter => {
+                const currentValue = filter.value;
+                filter.innerHTML = '<option value="all">Todas las asignaturas</option>';
+                subjects.forEach(subject => {
+                    const option = document.createElement('option');
+                    option.value = subject;
+                    option.textContent = subject;
+                    if (subject === currentValue) option.selected = true;
+                    filter.appendChild(option);
+                });
+            });
+            
+            // Actualizar filtros de semestre
+            const semesters = [...new Set(evaluaciones.map(e => e.semester))].sort();
+            const semesterFilters = document.querySelectorAll('#dashboardSemesterFilter, #semesterFilter');
+            
+            semesterFilters.forEach(filter => {
+                const currentValue = filter.value;
+                filter.innerHTML = '<option value="all">Todos los semestres</option>';
+                semesters.forEach(semester => {
+                    const option = document.createElement('option');
+                    option.value = semester;
+                    option.textContent = semester;
+                    if (semester === currentValue) option.selected = true;
+                    filter.appendChild(option);
+                });
+            });
+        }
+
+        // ========== FUNCIONES DE EXPORTACIÓN ==========
+        function exportToExcel() {
+            if (!checkAuthentication()) {
+                showLoginModal('dashboard');
+                return;
+            }
+
+            if (evaluaciones.length === 0) {
+                alert('No hay evaluaciones para exportar');
+                return;
+            }
+
+            const ws = XLSX.utils.json_to_sheet(evaluaciones.map(eval => ({
+                'Fecha': new Date(eval.timestamp).toLocaleDateString('es-MX'),
+                'Hora': new Date(eval.timestamp).toLocaleTimeString('es-MX'),
+                'Estudiante': eval.studentName,
+                'Semestre': eval.semester,
+                'Asignatura': eval.subject,
+                'Catedrático': eval.professor,
+                'Carrera': eval.career,
+                'Calificación Promedio': eval.average.toFixed(2),
+                'Recomendación': eval.recommendation.wouldRecommend === 'si' ? 'Sí' : 'No',
+                'Razón Recomendación': eval.recommendation.reason
+            })));
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Evaluaciones');
+            
+            const date = new Date();
+            const fileName = `evaluaciones_${date.getFullYear()}_${(date.getMonth() + 1).toString().padStart(2, '0')}_${date.getDate().toString().padStart(2, '0')}.xlsx`;
+            
+            XLSX.writeFile(wb, fileName);
+        }
+
+        function clearLocalData() {
+            if (!checkAuthentication()) {
+                showLoginModal('data');
+                return;
+            }
+            
+            if (confirm('¿Está seguro de limpiar los datos locales? Los datos en la nube no se verán afectados.')) {
+                evaluaciones = [];
+                saveData();
+                updateDashboard();
+                showFormattedData();
+                alert('Datos locales limpiados');
+            }
+        }
+
+        // ========== FUNCIONES DE VISUALIZACIÓN DE DATOS ==========
+        function showFormattedData() {
+            if (!checkAuthentication()) {
+                showLoginModal('data');
+                return;
+            }
+            filterRawData();
+        }
+
+        function filterRawData() {
+            const professorFilter = document.getElementById('professorFilter');
+            const subjectFilter = document.getElementById('subjectFilter');
+            const semesterFilter = document.getElementById('semesterFilter');
+            
+            let filteredEvaluations = evaluaciones;
+            
+            if (professorFilter && professorFilter.value !== 'all') {
+                filteredEvaluations = filteredEvaluations.filter(e => e.professor === professorFilter.value);
+            }
+            
+            if (subjectFilter && subjectFilter.value !== 'all') {
+                filteredEvaluations = filteredEvaluations.filter(e => e.subject === subjectFilter.value);
+            }
+            
+            if (semesterFilter && semesterFilter.value !== 'all') {
+                filteredEvaluations = filteredEvaluations.filter(e => e.semester === semesterFilter.value);
+            }
+            
+            displayFormattedData(filteredEvaluations);
+        }
+
+        function displayFormattedData(evaluations) {
+            const container = document.getElementById('rawData');
+            
+            if (evaluations.length === 0) {
+                container.innerHTML = '<div class="no-data">No hay evaluaciones que coincidan con los filtros</div>';
+                document.getElementById('evaluationCount').textContent = '0 evaluaciones';
+                return;
+            }
+            
+            let html = '';
+            
+            evaluations.forEach((eval, index) => {
+                html += `
+                    <div class="evaluation-card">
+                        <div class="evaluation-header">
+                            <div>
+                                <div class="evaluation-professor">${eval.professor}</div>
+                                <div class="evaluation-meta">
+                                    ${eval.subject} | ${eval.career} | ${eval.semester} | 
+                                    ${new Date(eval.timestamp).toLocaleDateString('es-MX')}
+                                </div>
+                            </div>
+                            <div class="stats-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 15px;">
+                                <div class="stat-item" style="text-align: center; padding: 10px; background: white; border-radius: 4px; border: 1px solid #e9ecef;">
+                                    <div class="stat-value" style="font-weight: bold; font-size: 1.2em; color: #2c3e50;">${eval.average.toFixed(1)}</div>
+                                    <div class="stat-label-small" style="font-size: 0.8em; color: #7f8c8d;">Promedio</div>
+                                </div>
+                                <div class="stat-item" style="text-align: center; padding: 10px; background: white; border-radius: 4px; border: 1px solid #e9ecef;">
+                                    <div class="stat-value" style="font-weight: bold; font-size: 1.2em; color: #2c3e50;">${eval.recommendation.wouldRecommend === 'si' ? 'Sí' : 'No'}</div>
+                                    <div class="stat-label-small" style="font-size: 0.8em; color: #7f8c8d;">Recomienda</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+            document.getElementById('evaluationCount').textContent = `${evaluations.length} evaluación(es)`;
+        }
+    </script>
+</body>
+</html>
