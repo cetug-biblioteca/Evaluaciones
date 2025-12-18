@@ -927,10 +927,23 @@
             API_URL: 'https://api.github.com',
             FILE_PATH: 'evaluaciones.json',
             EXCEL_PATH: 'evaluaciones.xlsx',
-            TOKEN: 'ghp_TU_TOKEN_AQUI',  // ← REEMPLAZA con tu token de GitHub
-            REPO: 'TU_USUARIO/TU_REPOSITORIO'  // ← REEMPLAZA con tu usuario/repo
+            TOKEN: '',  // ← REEMPLAZA con tu token de GitHub
+            REPO: 'cetug-biblioteca/Evalua'  // ← REEMPLAZA con tu usuario/repo
         };
 
+         (function setupToken() {
+            const savedToken = localStorage.getItem('github_token');
+            if (savedToken && savedToken.startsWith('ghp_')) {
+                GITHUB_CONFIG.TOKEN = savedToken;
+            } else if (window.location.hostname.includes('github.io')) {
+                const token = prompt('🔐 Ingresa token GitHub (ghp_...):');
+                if (token && token.startsWith('ghp_')) {
+                    localStorage.setItem('github_token', token);
+                    GITHUB_CONFIG.TOKEN = token;
+                }
+            }
+        })();
+        
         // ========== CONFIGURACIÓN DEL SISTEMA ==========
         const SECURITY_CONFIG = {
             ADMIN_PASSWORD: 'admin123',
